@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Subtle Drop Shadow under main frame -->
+    <path
+        android:fillColor="#60000000"
+        android:pathData="M38,32 h32 a8,8 0 0 1 8,8 v32 a8,8 0 0 1 -8,8 h-32 a8,8 0 0 1 -8,-8 v-32 a8,8 0 0 1 8,-8 Z" />
+
+    <!-- Gold Accent Frame -->
+    <path
+        android:pathData="M36,30 h32 a8,8 0 0 1 8,8 v32 a8,8 0 0 1 -8,8 h-32 a8,8 0 0 1 -8,-8 v-32 a8,8 0 0 1 8,-8 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="28"
+                android:startY="30"
+                android:endX="76"
+                android:endY="78"
+                android:type="linear">
+                <item android:color="#FFEAA7" android:offset="0" />
+                <item android:color="#FFD700" android:offset="0.5" />
+                <item android:color="#D4AF37" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Dark Inner Plaque -->
+    <path
+        android:fillColor="#151515"
+        android:pathData="M39,33 h26 a5,5 0 0 1 5,5 v26 a5,5 0 0 1 -5,5 h-26 a5,5 0 0 1 -5,-8 v-22 a5,5 0 0 1 5,-6 Z" />
+
+    <!-- Gold Centered Play Symbol -->
+    <path
+        android:pathData="M48,43.5 L58.5,50 L48,56.5 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="48"
+                android:startY="43.5"
+                android:endX="58.5"
+                android:endY="56.5"
+                android:type="linear">
+                <item android:color="#FFEAA7" android:offset="0" />
+                <item android:color="#FFD700" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Magnificent Gold/White Sparkle star at top-right (x=77, y=22) -->
+    <path
+        android:pathData="M77,14 L79,20 L85,22 L79,24 L77,30 L75,24 L69,22 L75,20 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="69"
+                android:startY="14"
+                android:endX="85"
+                android:endY="30"
+                android:type="linear">
+                <item android:color="#FFFFFF" android:offset="0" />
+                <item android:color="#FFD700" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Delicate sparkle star at bottom-left (x=27, y=76) -->
+    <path
+        android:pathData="M27,69 L28.5,73.5 L33,75 L28.5,76.5 L27,81 L25.5,76.5 L21,75 L25.5,73.5 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="21"
+                android:startY="69"
+                android:endX="33"
+                android:endY="81"
+                android:type="linear">
+                <item android:color="#FFFFFF" android:offset="0" />
+                <item android:color="#FFD700" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+</vector>

@@ -1,0 +1,6 @@
+{
+  "name": "Vibe Lust Wallpapers",
+  "description": "Trim and set live video wallpapers on your home screen with AdMob integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
