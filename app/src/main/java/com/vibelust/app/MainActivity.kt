@@ -207,7 +207,11 @@ class MainActivity : ComponentActivity() {
         val coroutineScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
         coroutineScope.launch {
             try {
-                db.userDao().insertUser(User(email = email, displayName = name))
+                if (::db.isInitialized) {
+                    db.userDao().insertUser(User(email = email, displayName = name))
+                } else {
+                    Log.e("MainActivity", "Database lateinit var db is not initialized!")
+                }
             } catch (e: Exception) {
                 Log.e("MainActivity", "User db store failure", e)
             }
@@ -251,8 +255,10 @@ fun MainAppContainer(
     onTriggerWallpaperSelector: (Wallpaper) -> Unit
 ) {
     val context = LocalContext.current
-    var userEmail by remember { mutableStateOf("") }
-    var userDisplayName by remember { mutableStateOf("") }
+    val sharedPrefs = remember(context) { context.getSharedPreferences("vibelust_user_prefs", Context.MODE_PRIVATE) }
+
+    var userEmail by remember { mutableStateOf(sharedPrefs.getString("logged_in_email", "") ?: "") }
+    var userDisplayName by remember { mutableStateOf(sharedPrefs.getString("logged_in_name", "") ?: "") }
     var currentTab by remember { mutableStateOf(0) }
 
     // Google Sign-In Setup
@@ -267,6 +273,30 @@ fun MainAppContainer(
         } catch (e: Exception) {
             Log.e("MainActivity", "Google Play Services auth client not available on system", e)
             null
+        } catch (e: Throwable) {
+            Log.e("MainActivity", "Throwable crash in GoogleSignInClient setup", e)
+            null
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (userEmail.isEmpty()) {
+            try {
+                val lastAccount = GoogleSignIn.getLastSignedInAccount(context)
+                if (lastAccount != null) {
+                    userEmail = lastAccount.email ?: ""
+                    userDisplayName = lastAccount.displayName ?: "Explorer"
+                    sharedPrefs.edit()
+                        .putString("logged_in_email", userEmail)
+                        .putString("logged_in_name", userDisplayName)
+                        .apply()
+                    Toast.makeText(context, "Auto-logged in safely ✧", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "GoogleSignIn.getLastSignedInAccount failed safely", e)
+            } catch (e: Throwable) {
+                Log.e("MainActivity", "GoogleSignIn.getLastSignedInAccount crash caught", e)
+            }
         }
     }
 
@@ -278,6 +308,10 @@ fun MainAppContainer(
             val account = task.getResult(ApiException::class.java)
             userEmail = account?.email ?: ""
             userDisplayName = account?.displayName ?: "Explorer"
+            sharedPrefs.edit()
+                .putString("logged_in_email", userEmail)
+                .putString("logged_in_name", userDisplayName)
+                .apply()
             Toast.makeText(context, "Welcome, $userDisplayName! Signed in via Google.", Toast.LENGTH_SHORT).show()
             (context as? MainActivity)?.handleUserRegistration(context, userEmail, userDisplayName)
         } catch (e: Exception) {
@@ -332,6 +366,10 @@ fun MainAppContainer(
                     onDeveloperPortalSignIn = { email, name ->
                         userEmail = email
                         userDisplayName = name
+                        sharedPrefs.edit()
+                            .putString("logged_in_email", email)
+                            .putString("logged_in_name", name)
+                            .apply()
                         Toast.makeText(context, "Logged in as: $email", Toast.LENGTH_SHORT).show()
                         (context as? MainActivity)?.handleUserRegistration(context, email, name)
                     }
@@ -345,6 +383,10 @@ fun MainAppContainer(
                         userEmail = userEmail,
                         userDisplayName = userDisplayName,
                         onSignOutClick = {
+                            sharedPrefs.edit()
+                                .remove("logged_in_email")
+                                .remove("logged_in_name")
+                                .apply()
                             val client = googleSignInClient
                             if (client != null) {
                                 client.signOut().addOnCompleteListener {
