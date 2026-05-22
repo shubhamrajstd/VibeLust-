@@ -1,0 +1,6 @@
+# Ensure gradlew has LF line endings
+gradlew text eol=lf
+*.bat text eol=crlf
+
+# Ensure gradle-wrapper.jar is treated as binary and never modified
+*.jar binary

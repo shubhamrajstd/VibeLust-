@@ -134,9 +134,13 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Initialize AdMob Mobile Ads SDK
-        MobileAds.initialize(this) { status ->
-            Log.i("MainActivity", "AdMob initialized: $status")
+        // Initialize AdMob Mobile Ads SDK safely
+        try {
+            MobileAds.initialize(this) { status ->
+                Log.i("MainActivity", "AdMob initialized: $status")
+            }
+        } catch (e: Throwable) {
+            Log.e("MainActivity", "MobileAds initialization crashed safely", e)
         }
 
         setContent {
@@ -1192,7 +1196,7 @@ fun AdmobBanner(modifier: Modifier = Modifier) {
                     setAdUnitId("ca-app-pub-5879858884847224/2721072268")
                     loadAd(AdRequest.Builder().build())
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e("MainActivity", "Admob AdView creation failed safely", e)
                 android.view.View(context)
             }
