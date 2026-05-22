@@ -13,6 +13,13 @@ data class Wallpaper(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "users")
+data class User(
+    @PrimaryKey val email: String,
+    val displayName: String,
+    val signupTimestamp: Long = System.currentTimeMillis()
+)
+
 @Dao
 interface WallpaperDao {
     @Query("SELECT * FROM wallpapers ORDER BY timestamp DESC")
@@ -28,9 +35,19 @@ interface WallpaperDao {
     suspend fun deleteWallpaper(wallpaper: Wallpaper)
 }
 
-@Database(entities = [Wallpaper::class], version = 1, exportSchema = false)
+@Dao
+interface UserDao {
+    @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
+    suspend fun getUserByEmail(email: String): User?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertUser(user: User)
+}
+
+@Database(entities = [Wallpaper::class, User::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun wallpaperDao(): WallpaperDao
+    abstract fun userDao(): UserDao
 
     companion object {
         @Volatile
@@ -42,7 +59,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "vibelust_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

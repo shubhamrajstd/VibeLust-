@@ -47,6 +47,7 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.MobileAds
+import androidx.activity.compose.BackHandler
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -197,6 +198,34 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    fun handleUserRegistration(context: Context, email: String, name: String) {
+        val prefs = context.getSharedPreferences("vibelust_user_prefs", Context.MODE_PRIVATE)
+        val isFirstTimeKey = "welcomed_${email.replace(".", "_")}"
+        val alreadyWelcomed = prefs.getBoolean(isFirstTimeKey, false)
+        
+        val coroutineScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
+        coroutineScope.launch {
+            try {
+                db.userDao().insertUser(User(email = email, displayName = name))
+            } catch (e: Exception) {
+                Log.e("MainActivity", "User db store failure", e)
+            }
+            
+            if (!alreadyWelcomed) {
+                // Dispatch SMTP Welcome asynchronously
+                val success = EmailSender.sendWelcomeAndAdminNotification(email, name)
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        prefs.edit().putBoolean(isFirstTimeKey, true).apply()
+                        Toast.makeText(context, "Welcome Setup Complete! Greeting dispatched via SMTP server.", Toast.LENGTH_LONG).show()
+                    } else {
+                        Log.w("MainActivity", "Email dispatch network threshold bypassed.")
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -233,7 +262,12 @@ fun MainAppContainer(
             .build()
     }
     val googleSignInClient = remember {
-        GoogleSignIn.getClient(context, gso)
+        try {
+            GoogleSignIn.getClient(context, gso)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Google Play Services auth client not available on system", e)
+            null
+        }
     }
 
     val signInLauncher = rememberLauncherForActivityResult(
@@ -245,9 +279,27 @@ fun MainAppContainer(
             userEmail = account?.email ?: ""
             userDisplayName = account?.displayName ?: "Explorer"
             Toast.makeText(context, "Welcome, $userDisplayName! Signed in via Google.", Toast.LENGTH_SHORT).show()
+            (context as? MainActivity)?.handleUserRegistration(context, userEmail, userDisplayName)
         } catch (e: Exception) {
             Log.e("MainActivity", "Google sign-in error", e)
             Toast.makeText(context, "Google Sign-In failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Step-by-Step Back Button Handler
+    var backPressedTime by remember { mutableLongStateOf(0L) }
+    BackHandler(enabled = true) {
+        if (userEmail.isNotEmpty() && currentTab != 0) {
+            currentTab = 0
+        } else {
+            val activity = context as? Activity
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - backPressedTime < 2000) {
+                activity?.finish()
+            } else {
+                backPressedTime = currentTime
+                Toast.makeText(context, "Press BACK again to exit ✧", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -267,7 +319,12 @@ fun MainAppContainer(
                 LoginScreen(
                     onGoogleSignInClick = {
                         try {
-                            signInLauncher.launch(googleSignInClient.signInIntent)
+                            val client = googleSignInClient
+                            if (client != null) {
+                                signInLauncher.launch(client.signInIntent)
+                            } else {
+                                Toast.makeText(context, "Google Sign-In client unavailable. Please sign in via secure email protocol.", Toast.LENGTH_LONG).show()
+                            }
                         } catch (e: Exception) {
                             Toast.makeText(context, "Failing over to dynamic credentials context.", Toast.LENGTH_SHORT).show()
                         }
@@ -276,10 +333,11 @@ fun MainAppContainer(
                         userEmail = email
                         userDisplayName = name
                         Toast.makeText(context, "Logged in as: $email", Toast.LENGTH_SHORT).show()
+                        (context as? MainActivity)?.handleUserRegistration(context, email, name)
                     }
                 )
             } else {
-                val isAdmin = userEmail.equals("shubhamraj.std@gmail.com", ignoreCase = true)
+                val isAdmin = userEmail.equals("shubhamraj.std@gmail.com", ignoreCase = true) || userEmail.equals("vibelust.music@gmail.com", ignoreCase = true)
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Modern Branding header
@@ -287,7 +345,15 @@ fun MainAppContainer(
                         userEmail = userEmail,
                         userDisplayName = userDisplayName,
                         onSignOutClick = {
-                            googleSignInClient.signOut().addOnCompleteListener {
+                            val client = googleSignInClient
+                            if (client != null) {
+                                client.signOut().addOnCompleteListener {
+                                    userEmail = ""
+                                    userDisplayName = ""
+                                    currentTab = 0
+                                    Toast.makeText(context, "Signed out safely.", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
                                 userEmail = ""
                                 userDisplayName = ""
                                 currentTab = 0
@@ -296,65 +362,64 @@ fun MainAppContainer(
                         }
                     )
 
-                    // Navigation Tabs
-                    if (isAdmin) {
-                        TabRow(
-                            selectedTabIndex = currentTab,
-                            containerColor = NebulaSurface,
-                            contentColor = AntiqueGold
+                    // Navigation Tabs displayed to all users
+                    TabRow(
+                        selectedTabIndex = currentTab,
+                        containerColor = NebulaSurface,
+                        contentColor = AntiqueGold
+                    ) {
+                        Tab(
+                            selected = currentTab == 0,
+                            onClick = { currentTab = 0 },
+                            modifier = Modifier.testTag("loops_catalog_tab_button")
                         ) {
-                            Tab(
-                                selected = currentTab == 0,
-                                onClick = { currentTab = 0 },
-                                modifier = Modifier.testTag("loops_catalog_tab_button")
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(14.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(14.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = null,
-                                        tint = if (currentTab == 0) AntiqueGold else SilverMist
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Loops Catalog",
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (currentTab == 0) AntiqueGold else SilverMist
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = if (currentTab == 0) AntiqueGold else SilverMist
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Loops Catalog",
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (currentTab == 0) AntiqueGold else SilverMist
+                                )
                             }
-                            Tab(
-                                selected = currentTab == 1,
-                                onClick = { currentTab = 1 },
-                                modifier = Modifier.testTag("admin_tab_button")
+                        }
+                        Tab(
+                            selected = currentTab == 1,
+                            onClick = { currentTab = 1 },
+                            modifier = Modifier.testTag("admin_tab_button")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(14.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(14.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = null,
-                                        tint = if (currentTab == 1) AntiqueGold else SilverMist
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Admin Studio",
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (currentTab == 1) AntiqueGold else SilverMist
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = if (currentTab == 1) AntiqueGold else SilverMist
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isAdmin) "Admin Studio" else "Upload Studio",
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (currentTab == 1) AntiqueGold else SilverMist
+                                )
                             }
                         }
                     }
 
-                    if (currentTab == 0 || !isAdmin) {
+                    if (currentTab == 0) {
                         SearchCatalogScreen(
                             db = db,
                             onTriggerWallpaperSelector = onTriggerWallpaperSelector,
-                            isAdmin = isAdmin
+                            isAdmin = isAdmin,
+                            userEmail = userEmail
                         )
                     } else {
                         AdminControlScreen(
@@ -532,57 +597,13 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Testing sandbox bypassing triggers
                 Text(
-                    text = "QUICK-ACCESS TESTING SHORTCUTS",
-                    fontSize = 10.sp,
-                    color = SilverMist.copy(alpha = 0.8f),
+                    text = "✧ SECURED BY GOOGLE AUTHENTICATION PROTOCOLS ✧",
+                    fontSize = 9.sp,
+                    color = SilverMist.copy(alpha = 0.5f),
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = { onDeveloperPortalSignIn("shubhamraj.std@gmail.com", "Shubham Raj") },
-                        colors = ButtonDefaults.buttonColors(containerColor = NebulaSurface),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, AntiqueGold),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                            .testTag("bypass_admin_button")
-                    ) {
-                        Text(
-                            text = "Admin Mode",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AntiqueGold
-                        )
-                    }
-
-                    Button(
-                        onClick = { onDeveloperPortalSignIn("vibeuser@gmail.com", "Standard User") },
-                        colors = ButtonDefaults.buttonColors(containerColor = NebulaSurface),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, NeonPurple),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                            .testTag("bypass_user_button")
-                    ) {
-                        Text(
-                            text = "User Mode",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = NeonPurple
-                        )
-                    }
-                }
             }
         }
     }
@@ -640,7 +661,8 @@ fun HeaderSection(
 fun SearchCatalogScreen(
     db: AppDatabase,
     onTriggerWallpaperSelector: (Wallpaper) -> Unit,
-    isAdmin: Boolean
+    isAdmin: Boolean,
+    userEmail: String
 ) {
     var searchQuery by remember { mutableStateOf("") }
     val wallpapersState = db.wallpaperDao().getAllWallpapers().collectAsStateWithLifecycle(initialValue = emptyList())
@@ -684,7 +706,7 @@ fun SearchCatalogScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (searchQuery.isEmpty()) "No loops registered yet.\nAdmin can add premium loop entries!" else "No wallpapers match '$searchQuery'",
+                    text = if (searchQuery.isEmpty()) "No loops registered yet.\nUpload your own live loops to start!" else "No wallpapers match '$searchQuery'",
                     color = SilverMist,
                     textAlign = TextAlign.Center,
                     fontSize = 14.sp
@@ -699,7 +721,7 @@ fun SearchCatalogScreen(
                     WallpaperCard(
                         wallpaper = wallpaper,
                         onTriggerSelection = { onTriggerWallpaperSelector(wallpaper) },
-                        isAdmin = isAdmin,
+                        isAdmin = isAdmin || wallpaper.addedBy.equals(userEmail, ignoreCase = true),
                         onDeleteClick = {
                             coroutineScope.launch(Dispatchers.IO) {
                                 db.wallpaperDao().deleteWallpaper(wallpaper)
@@ -1122,10 +1144,15 @@ fun AdmobBanner(modifier: Modifier = Modifier) {
     AndroidView(
         modifier = modifier.fillMaxWidth(),
         factory = { context ->
-            AdView(context).apply {
-                setAdSize(AdSize.BANNER)
-                setAdUnitId("ca-app-pub-3940256099942544/6300978111")
-                loadAd(AdRequest.Builder().build())
+            try {
+                AdView(context).apply {
+                    setAdSize(AdSize.BANNER)
+                    setAdUnitId("ca-app-pub-5879858884847224/2721072268")
+                    loadAd(AdRequest.Builder().build())
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Admob AdView creation failed safely", e)
+                android.view.View(context)
             }
         }
     )
