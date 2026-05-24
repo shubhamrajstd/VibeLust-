@@ -1,8 +1,26 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
     id("com.google.gms.google-services")
+}
+
+val rootDir = project.rootDir
+val base64File = File(rootDir, "debug.keystore.base64")
+val targetKeystore = file("debug.keystore")
+
+if (!targetKeystore.exists() && base64File.exists()) {
+    try {
+        val encodedBytes = base64File.readBytes()
+        val encodedStr = String(encodedBytes).replace("\\s".toRegex(), "")
+        val decodedBytes = Base64.getDecoder().decode(encodedStr)
+        targetKeystore.writeBytes(decodedBytes)
+        println("Successfully decoded debug.keystore from debug.keystore.base64! ✧")
+    } catch (e: Exception) {
+        println("Warning: failed to decode debug.keystore: ${e.message}")
+    }
 }
 
 android {
@@ -23,6 +41,15 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            val localKeystore = file("debug.keystore")
+            if (localKeystore.exists()) {
+                storeFile = localKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         create("release") {
             storeFile = file("vibelust.jks")
             storePassword = "SHUBHAM@2008"
@@ -36,11 +63,15 @@ android {
             isMinifyEnabled = false
             if (file("vibelust.jks").exists()) {
                 signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
         debug {
             if (file("vibelust.jks").exists()) {
                 signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
     }

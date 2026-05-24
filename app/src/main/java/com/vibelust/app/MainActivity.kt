@@ -269,6 +269,7 @@ fun MainAppContainer(
     val gso = remember {
         GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
+            .requestIdToken("514742134520-3djj96png9pavurqt2ll2vu75fpq1k79.apps.googleusercontent.com")
             .build()
     }
     val googleSignInClient = remember {
